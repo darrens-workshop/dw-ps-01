@@ -34,17 +34,17 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
+          if [ -z "${VERSION}" ]; then
             echo "Missing version input"; exit 1
           fi
-          if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
+          if ! git rev-parse "${VERSION}" >/dev/null 2>&1; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$VERSION" -m "Release $VERSION"
-            git push origin "$VERSION"
-            echo "Created tag $VERSION"
+            git tag -a "${VERSION}" -m "Release ${VERSION}"
+            git push origin "${VERSION}"
+            echo "Created tag ${VERSION}"
           else
-            echo "Tag $VERSION already exists"
+            echo "Tag ${VERSION} already exists"
           fi
 
       - name: Set VERSION from event
@@ -73,6 +73,7 @@ jobs:
 
       - name: Install ESPHome
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install esphome
 
@@ -81,21 +82,21 @@ jobs:
 
       - name: Compile firmware
         run: |
+          set -euo pipefail
           esphome compile "${EXAMPLE_YAML}"
 
       - name: Locate build artifacts
         id: locate
         run: |
           set -euo pipefail
-          # Find first match of each artifact anywhere under .esphome/build
           FACTORY="$(find .esphome/build -type f -name 'firmware-factory.bin' | head -n 1 || true)"
           OTA="$(find .esphome/build -type f -name 'firmware.bin' | head -n 1 || true)"
 
           if [ -z "${FACTORY}" ] || [ ! -f "${FACTORY}" ]; then
-            echo "Factory binary not found"; find .esphome/build -maxdepth 3 -type f -name 'firmware*' -ls; exit 1
+            echo "Factory binary not found"; find .esphome/build -maxdepth 4 -type f -name 'firmware*' -ls; exit 1
           fi
           if [ -z "${OTA}" ] || [ ! -f "${OTA}" ]; then
-            echo "OTA binary not found"; find .esphome/build -maxdepth 3 -type f -name 'firmware*' -ls; exit 1
+            echo "OTA binary not found"; find .esphome/build -maxdepth 4 -type f -name 'firmware*' -ls; exit 1
           fi
 
           mkdir -p dist
@@ -120,13 +121,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Pages / manifest auto-bump ---
       - name: Ensure docs directory & base manifest
         run: |
           set -euo pipefail
           mkdir -p docs
           if [ ! -f docs/manifest.json ]; then
-            cat > docs/manifest.json <<'JSON'
+            cat > docs/manifest.json << 'JSON'
 {
   "name": "DW Presence Sensor",
   "version": "v0.0.0",
@@ -153,22 +153,4 @@ JSON
           set -euo pipefail
           sudo apt-get update -y
           sudo apt-get install -y jq
-          URL="https://github.com/${REPO}/releases/download/${VERSION}/dw-ps-01.factory-${VERSION}.bin"
-          TMP="$(mktemp)"
-          jq --arg ver "$VERSION" --arg url "$URL" \
-             '.version=$ver | .builds[0].parts[0].path=$url' \
-             docs/manifest.json > "$TMP"
-          mv "$TMP" docs/manifest.json
-
-      - name: Commit updated manifest
-        run: |
-          set -euo pipefail
-          if git diff --quiet docs/manifest.json; then
-            echo "No manifest changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/manifest.json
-          git commit -m "chore(docs): bump manifest to ${{ steps.setver.outputs.version }}"
-          git push
+          URL="https://github.com/$
