@@ -18,7 +18,6 @@ permissions:
 
 env:
   EXAMPLE_YAML: esphome/dw-ps-01-example.yaml
-  DEVICE_NAME: dw-ps-01
 
 jobs:
   build-and-release:
@@ -33,6 +32,7 @@ jobs:
       - name: Ensure tag exists (workflow_dispatch only)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
+          set -euo pipefail
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
             echo "Missing version input"; exit 1
@@ -50,6 +50,7 @@ jobs:
       - name: Set VERSION from event
         id: setver
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
           else
@@ -85,23 +86,26 @@ jobs:
       - name: Locate build artifacts
         id: locate
         run: |
-          BUILD_DIR=".esphome/build/${DEVICE_NAME}/.pioenvs/${DEVICE_NAME}"
-          FACTORY="${BUILD_DIR}/firmware.factory.bin"
-          OTA="${BUILD_DIR}/firmware.bin"
+          set -euo pipefail
+          # Find first match of each artifact anywhere under .esphome/build
+          FACTORY="$(find .esphome/build -type f -name 'firmware-factory.bin' | head -n 1 || true)"
+          OTA="$(find .esphome/build -type f -name 'firmware.bin' | head -n 1 || true)"
 
-          if [ ! -f "$FACTORY" ]; then
-            echo "Factory binary not found at $FACTORY"; exit 1
+          if [ -z "${FACTORY}" ] || [ ! -f "${FACTORY}" ]; then
+            echo "Factory binary not found"; find .esphome/build -maxdepth 3 -type f -name 'firmware*' -ls; exit 1
           fi
-          if [ ! -f "$OTA" ]; then
-            echo "OTA binary not found at $OTA"; exit 1
+          if [ -z "${OTA}" ] || [ ! -f "${OTA}" ]; then
+            echo "OTA binary not found"; find .esphome/build -maxdepth 3 -type f -name 'firmware*' -ls; exit 1
           fi
 
           mkdir -p dist
-          cp "$FACTORY" "dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin"
-          cp "$OTA"     "dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin"
+          OUT_FACTORY="dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin"
+          OUT_OTA="dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin"
+          cp "${FACTORY}" "${OUT_FACTORY}"
+          cp "${OTA}" "${OUT_OTA}"
 
-          echo "factory=dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin" >> "$GITHUB_OUTPUT"
-          echo "ota=dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin" >> "$GITHUB_OUTPUT"
+          echo "factory=${OUT_FACTORY}" >> "$GITHUB_OUTPUT"
+          echo "ota=${OUT_OTA}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -119,6 +123,7 @@ jobs:
       # --- Pages / manifest auto-bump ---
       - name: Ensure docs directory & base manifest
         run: |
+          set -euo pipefail
           mkdir -p docs
           if [ ! -f docs/manifest.json ]; then
             cat > docs/manifest.json <<'JSON'
@@ -145,18 +150,19 @@ JSON
           VERSION: ${{ steps.setver.outputs.version }}
           REPO: ${{ steps.setver.outputs.repo }}
         run: |
-          sudo apt-get update && sudo apt-get install -y jq
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y jq
           URL="https://github.com/${REPO}/releases/download/${VERSION}/dw-ps-01.factory-${VERSION}.bin"
-          TMP=$(mktemp)
-          jq \
-            --arg ver "$VERSION" \
-            --arg url "$URL" \
-            '.version = $ver | .builds[0].parts[0].path = $url' \
-            docs/manifest.json > "$TMP"
+          TMP="$(mktemp)"
+          jq --arg ver "$VERSION" --arg url "$URL" \
+             '.version=$ver | .builds[0].parts[0].path=$url' \
+             docs/manifest.json > "$TMP"
           mv "$TMP" docs/manifest.json
 
       - name: Commit updated manifest
         run: |
+          set -euo pipefail
           if git diff --quiet docs/manifest.json; then
             echo "No manifest changes to commit."
             exit 0
