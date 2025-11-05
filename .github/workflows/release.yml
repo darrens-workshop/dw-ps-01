@@ -1,0 +1,117 @@
+name: Build & Release ESPHome Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write    # needed to create releases and push tags if using workflow_dispatch
+  actions: read
+
+env:
+  EXAMPLE_YAML: esphome/dw-ps-01-example.yaml
+  DEVICE_NAME: dw-ps-01
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # we need full history to create tags
+
+      - name: Ensure tag exists (workflow_dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            echo "Missing version input"; exit 1
+          fi
+          # If tag doesn't exist, create it on the current commit
+          if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$VERSION" -m "Release $VERSION"
+            git push origin "$VERSION"
+            echo "Created tag $VERSION"
+          else
+            echo "Tag $VERSION already exists"
+          fi
+
+      - name: Set VERSION from event
+        id: setver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            # extract tag name from refs/tags/vX.Y.Z
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install ESPHome
+        run: |
+          python -m pip install --upgrade pip
+          pip install esphome
+
+      - name: Show ESPHome version
+        run: esphome version
+
+      - name: Compile firmware
+        run: |
+          esphome compile "${EXAMPLE_YAML}"
+
+      - name: Locate build artifacts
+        id: locate
+        run: |
+          BUILD_DIR=".esphome/build/${DEVICE_NAME}/.pioenvs/${DEVICE_NAME}"
+          FACTORY="${BUILD_DIR}/firmware.factory.bin"
+          OTA="${BUILD_DIR}/firmware.bin"
+
+          if [ ! -f "$FACTORY" ]; then
+            echo "Factory binary not found at $FACTORY"; exit 1
+          fi
+          if [ ! -f "$OTA" ]; then
+            echo "OTA binary not found at $OTA"; exit 1
+          fi
+
+          mkdir -p dist
+          cp "$FACTORY" "dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin"
+          cp "$OTA"     "dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin"
+
+          echo "factory=dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin" >> "$GITHUB_OUTPUT"
+          echo "ota=dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.setver.outputs.version }}
+          name: ${{ steps.setver.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.locate.outputs.factory }}
+            ${{ steps.locate.outputs.ota }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
