@@ -1,2 +1,2 @@
-# DW-PS-01
-DW-PS-01 Presence Sensor
+# dw-ps-01
+dw-ps-01 Presence Sensor
