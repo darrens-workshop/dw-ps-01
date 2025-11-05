@@ -1,0 +1,30 @@
+# packages/diagnostics.yaml
+# Diagnostics sensors and maintenance buttons.
+
+sensor:
+  - platform: uptime
+    name: "${friendly_name} Uptime"
+    update_interval: 60s
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi RSSI"
+    update_interval: 60s
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP"
+    ssid:
+      name: "${friendly_name} WiFi SSID"
+    bssid:
+      name: "${friendly_name} WiFi BSSID"
+    mac_address:
+      name: "${friendly_name} MAC"
+
+# optional: safe mode support + buttons
+safe_mode:
+
+button:
+  - platform: restart
+    name: "${friendly_name} Reboot"
+  - platform: safe_mode
+    name: "${friendly_name} Enter Safe Mode"

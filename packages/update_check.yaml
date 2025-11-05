@@ -1,0 +1,71 @@
+# packages/update_check.yaml
+# Checks GitHub releases daily + on boot; exposes Latest Release tag and Update Available.
+
+# HTTP client for GitHub checks
+http_request:
+  useragent: esphome-dw-ps-01
+  timeout: 10s
+  verify_ssl: false   # required with Arduino framework
+
+# Text sensor to hold the latest tag (e.g. "v1.2.0")
+text_sensor:
+  - platform: template
+    id: latest_release
+    name: "${friendly_name} Latest Release"
+    update_interval: never
+
+# Update Available flag (true when GitHub tag != current fw_version)
+binary_sensor:
+  - platform: template
+    id: update_available
+    name: "${friendly_name} Update Available"
+    device_class: update
+    lambda: |-
+      auto latest = id(latest_release).state;
+      if (latest.empty()) return false;
+      std::string t = latest;
+      if (!t.empty() && (t[0] == 'v' || t[0] == 'V')) t = t.substr(1);  // strip leading 'v'
+      std::string cur = "${fw_version}";
+      return t != cur;
+
+# One-time check at boot (must live under esphome:)
+esphome:
+  on_boot:
+    priority: 600
+    then:
+      - http_request.get:
+          url: https://api.github.com/repos/darrens-workshop/dw-ps-01/releases/latest
+          request_headers:
+            Accept: application/vnd.github+json
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) return;
+                  JsonDocument doc;
+                  if (deserializeJson(doc, body)) return;
+                  std::string tag = doc["tag_name"] | "";
+                  id(latest_release).publish_state(tag);
+
+# Daily poll
+interval:
+  - interval: 24h
+    then:
+      - http_request.get:
+          url: https://api.github.com/repos/darrens-workshop/dw-ps-01/releases/latest
+          request_headers:
+            Accept: application/vnd.github+json
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code != 200) {
+                    ESP_LOGW("http", "GitHub HTTP %d", response->status_code);
+                    return;
+                  }
+                  JsonDocument doc;
+                  auto err = deserializeJson(doc, body);
+                  if (err) {
+                    ESP_LOGW("http", "JSON parse error: %s", err.c_str());
+                    return;
+                  }
+                  std::string tag = doc["tag_name"] | "";
+                  id(latest_release).publish_state(tag);

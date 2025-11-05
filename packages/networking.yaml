@@ -1,0 +1,20 @@
+# packages/networking.yaml
+# Networking, API, OTA, web server, and captive portal.
+
+# API (encryption optional via substitution)
+api:
+  # encryption:
+  #   key: ${api_key}
+
+ota:
+
+web_server:
+
+wifi:
+  # ssid: ${wifi_ssid}
+  # password: ${wifi_password}
+  ap:
+    ssid: "${friendly_name} Fallback AP"
+    password: "setup1234"
+
+captive_portal:

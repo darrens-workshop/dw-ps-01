@@ -1,0 +1,50 @@
+################################################################################
+# Darren's Workshop — dw-ps-01 (v2) — IoT Presence Sensor
+#
+# Overview
+# - MCU: ESP32-S3-WROOM-1 N16R8
+# - Sensors:
+#     • LD2410C mmWave radar (UART TX=GPIO17, RX=GPIO18, OUT=GPIO4)
+#     • AS312 PIR/presence (GPIO5)
+#     • VEML7700 ambient light over I²C (SCL=GPIO8, SDA=GPIO9)
+# - Exposes (basic defaults for now):
+#     • Motion (LD2410 OUT pin, AS312)
+#     • LD2410 targets & distances (presence/moving/still + distances)
+#     • Ambient light (lux via VEML7700)
+# - Extras:
+#     • Built-in web server
+#     • Wi-Fi with fallback AP if Wi-Fi is not configured
+#     • Arduino framework
+#
+# Substitutions (user-configurable)
+# - friendly_name: A nice label for HA/UI and fallback AP SSID.
+# - device_name:   Hostname base; MAC suffix is appended automatically.
+# - wifi_ssid / wifi_password: Optional; device starts its own AP if omitted.
+# - api_key: Optional API encryption key for ESPHome <-> Home Assistant.
+#
+# Recommended: use ESPHome SECRETS (secrets.yaml)
+#   dw_ps_wifi_ssid: "YOUR_WIFI_SSID"
+#   dw_ps_wifi_password: "YOUR_WIFI_PASSWORD"
+#   dw_ps_api_key: "YOUR_API_KEY"
+################################################################################
+
+substitutions:
+  friendly_name: "DW Presence Sensor"
+  device_name: "dw-ps-01"
+  # wifi_ssid: !secret dw_ps_wifi_ssid
+  # wifi_password: !secret dw_ps_wifi_password
+  # api_key: !secret dw_ps_api_key
+################################################################################
+# End of user configuration — you usually won’t need to edit below this line.  #
+################################################################################
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+
+packages:
+  core: github://darrens-workshop/dw-ps-01/packages/dw-ps-01-core.yaml@v1.0.0
+  networking: github://darrens-workshop/dw-ps-01/packages/networking.yaml@v1.0.0
+  diagnostics: github://darrens-workshop/dw-ps-01/packages/diagnostics.yaml@v1.0.0
+  update_check: github://darrens-workshop/dw-ps-01/packages/update_check.yaml@v1.0.0

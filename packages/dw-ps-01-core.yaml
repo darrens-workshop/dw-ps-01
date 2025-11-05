@@ -1,0 +1,83 @@
+# packages/dw-ps-01-core.yaml
+# Core board definition, sensors, and HA metadata for DW-PS-01.
+
+substitutions:
+  # Board release substitutions (DO NOT EDIT IN USER CONFIG)
+  fw_version: "1.0"
+
+esphome:
+  comment: "Darren's Workshop dw-ps-01 (v2) IoT Presence Sensor – LD2410C mmWave, AS312 PIR, and VEML7700 ambient light."
+  project:
+    name: darrens_workshop.dw-ps-01-v2
+    version: "${fw_version}"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: arduino
+
+logger:
+
+i2c:
+  scl: GPIO8
+  sda: GPIO9
+  scan: true
+
+uart:
+  id: ld2410_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  baud_rate: 256000
+
+ld2410:
+  uart_id: ld2410_uart
+
+binary_sensor:
+  # LD2410C OUT pin (GPIO4)
+  - platform: gpio
+    name: "${friendly_name} LD2410 OUT"
+    pin:
+      number: GPIO4
+      mode:
+        input: true
+        pullup: false
+    device_class: motion
+
+  # LD2410 data-stream presence targets
+  - platform: ld2410
+    has_target:
+      name: "${friendly_name} LD2410 Presence"
+    has_moving_target:
+      name: "${friendly_name} LD2410 Moving Target"
+    has_still_target:
+      name: "${friendly_name} LD2410 Still Target"
+
+  # AS312 presence sensor (GPIO5)
+  - platform: gpio
+    name: "${friendly_name} AS312 Motion"
+    pin:
+      number: GPIO5
+      mode:
+        input: true
+        pullup: false
+    device_class: motion
+    filters:
+      - delayed_off: 2s
+
+sensor:
+  # LD2410 distances
+  - platform: ld2410
+    detection_distance:
+      name: "${friendly_name} LD2410 Detection Distance"
+    moving_distance:
+      name: "${friendly_name} LD2410 Moving Distance"
+    still_distance:
+      name: "${friendly_name} LD2410 Still Distance"
+
+  # VEML7700 ambient light (lux)
+  - platform: veml7700
+    address: 0x10
+    update_interval: 30s
+    ambient_light:
+      name: "${friendly_name} Ambient Light"
