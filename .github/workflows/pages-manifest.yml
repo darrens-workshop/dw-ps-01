@@ -1,0 +1,58 @@
+name: Update Pages Manifest
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure docs/manifest.json exists
+        run: |
+          mkdir -p docs
+          if [ ! -f docs/manifest.json ]; then
+            echo '{"name":"DW Presence Sensor","version":"v0.0.0","builds":[{"chipFamily":"ESP32-S3","parts":[{"path":"","offset":0}]}]}' > docs/manifest.json
+          fi
+
+      - name: Update manifest to this release
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          URL="https://github.com/${REPO}/releases/download/${VERSION}/dw-ps-01.factory-${VERSION}.bin"
+          python - <<PY
+import json, os
+p = "docs/manifest.json"
+with open(p, "r", encoding="utf-8") as f:
+    data = json.load(f)
+if "builds" not in data or not data["builds"]:
+    data["builds"] = [{"chipFamily": "ESP32-S3", "parts": [{"path": "", "offset": 0}]}]
+data["version"] = os.environ["VERSION"]
+data["builds"][0]["parts"][0]["path"] = os.environ["URL"]
+with open(p, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+print("Updated", p)
+PY
+        env:
+          URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/dw-ps-01.factory-${{ github.event.release.tag_name }}.bin
+
+      - name: Commit manifest if changed
+        run: |
+          if git diff --quiet docs/manifest.json; then
+            echo "No manifest changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/manifest.json
+          git commit -m "docs: bump manifest to ${GITHUB_REF_NAME:-${{ github.event.release.tag_name }}}"
+          git push
