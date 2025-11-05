@@ -8,13 +8,10 @@ on:
         required: true
         type: string
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 permissions:
   contents: write
-  actions: read
-  pages: write
 
 env:
   EXAMPLE_YAML: esphome/dw-ps-01-example.yaml
@@ -22,135 +19,112 @@ env:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
-      - name: Ensure tag exists (workflow_dispatch only)
+      - name: Set VERSION
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
+          echo "repo=${GITHUB_REPOSITORY}" >> $GITHUB_OUTPUT
+
+      - name: Ensure tag exists (manual runs)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          set -euo pipefail
-          VERSION="${{ inputs.version }}"
-          if [ -z "${VERSION}" ]; then
-            echo "Missing version input"; exit 1
-          fi
-          if ! git rev-parse "${VERSION}" >/dev/null 2>&1; then
+          V="${{ steps.ver.outputs.version }}"
+          git rev-parse "$V" >/dev/null 2>&1 || {
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "${VERSION}" -m "Release ${VERSION}"
-            git push origin "${VERSION}"
-            echo "Created tag ${VERSION}"
-          else
-            echo "Tag ${VERSION} already exists"
-          fi
+            git tag -a "$V" -m "Release $V"
+            git push origin "$V"
+          }
 
-      - name: Set VERSION from event
-        id: setver
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
-          echo "repo=${GITHUB_REPOSITORY}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
+        with: { python-version: "3.11" }
 
       - name: Install ESPHome
         run: |
-          set -euo pipefail
           python -m pip install --upgrade pip
           pip install esphome
 
-      - name: Show ESPHome version
-        run: esphome version
+      - name: Compile
+        run: esphome compile "${EXAMPLE_YAML}"
 
-      - name: Compile firmware
+      - name: Find artifacts
+        id: find
         run: |
-          set -euo pipefail
-          esphome compile "${EXAMPLE_YAML}"
-
-      - name: Locate build artifacts
-        id: locate
-        run: |
-          set -euo pipefail
-          FACTORY="$(find .esphome/build -type f -name 'firmware-factory.bin' | head -n 1 || true)"
-          OTA="$(find .esphome/build -type f -name 'firmware.bin' | head -n 1 || true)"
-
-          if [ -z "${FACTORY}" ] || [ ! -f "${FACTORY}" ]; then
-            echo "Factory binary not found"; find .esphome/build -maxdepth 4 -type f -name 'firmware*' -ls; exit 1
-          fi
-          if [ -z "${OTA}" ] || [ ! -f "${OTA}" ]; then
-            echo "OTA binary not found"; find .esphome/build -maxdepth 4 -type f -name 'firmware*' -ls; exit 1
-          fi
-
+          FACTORY="$(find .esphome/build -name 'firmware-factory.bin' -type f | head -n1)"
+          OTA="$(find .esphome/build -name 'firmware.bin' -type f | head -n1)"
+          [ -f "$FACTORY" ] || { echo "No factory bin"; exit 1; }
+          [ -f "$OTA" ] || { echo "No OTA bin"; exit 1; }
           mkdir -p dist
-          OUT_FACTORY="dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin"
-          OUT_OTA="dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin"
-          cp "${FACTORY}" "${OUT_FACTORY}"
-          cp "${OTA}" "${OUT_OTA}"
+          OUTF="dist/dw-ps-01.factory-${{ steps.ver.outputs.version }}.bin"
+          OUTO="dist/dw-ps-01-ota-${{ steps.ver.outputs.version }}.bin"
+          cp "$FACTORY" "$OUTF"
+          cp "$OTA" "$OUTO"
+          echo "factory=$OUTF" >> $GITHUB_OUTPUT
+          echo "ota=$OUTO" >> $GITHUB_OUTPUT
 
-          echo "factory=${OUT_FACTORY}" >> "$GITHUB_OUTPUT"
-          echo "ota=${OUT_OTA}" >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub Release
+      - name: Create/Update Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.setver.outputs.version }}
-          name: ${{ steps.setver.outputs.version }}
-          draft: false
-          prerelease: false
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: ${{ steps.ver.outputs.version }}
           files: |
-            ${{ steps.locate.outputs.factory }}
-            ${{ steps.locate.outputs.ota }}
+            ${{ steps.find.outputs.factory }}
+            ${{ steps.find.outputs.ota }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Ensure docs directory & base manifest
+      - name: Ensure docs/manifest.json
         run: |
-          set -euo pipefail
           mkdir -p docs
           if [ ! -f docs/manifest.json ]; then
-            cat > docs/manifest.json << 'JSON'
-{
-  "name": "DW Presence Sensor",
-  "version": "v0.0.0",
-  "builds": [
-    {
-      "chipFamily": "ESP32-S3",
-      "parts": [
-        {
-          "path": "",
-          "offset": 0
-        }
-      ]
-    }
-  ]
-}
-JSON
+            printf '%s\n' \
+            '{' \
+            '  "name": "DW Presence Sensor",' \
+            '  "version": "v0.0.0",' \
+            '  "builds": [{' \
+            '    "chipFamily": "ESP32-S3",' \
+            '    "parts": [{"path": "", "offset": 0}]' \
+            '  }]' \
+            '}' > docs/manifest.json
           fi
 
-      - name: Update docs/manifest.json to latest tag
-        env:
-          VERSION: ${{ steps.setver.outputs.version }}
-          REPO: ${{ steps.setver.outputs.repo }}
+      - name: Update manifest to latest
         run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y jq
-          URL="https://github.com/$
+          VERSION='${{ steps.ver.outputs.version }}'
+          REPO='${{ steps.ver.outputs.repo }}'
+          URL="https://github.com/${REPO}/releases/download/${VERSION}/dw-ps-01.factory-${VERSION}.bin"
+          # Minimal jq-free update to avoid YAML quoting issues
+          python - <<'PY'
+import json,sys,os
+p="docs/manifest.json"
+with open(p) as f: d=json.load(f)
+d.setdefault("builds",[{"chipFamily":"ESP32-S3","parts":[{"path":"","offset":0}]}])
+d["version"]=os.environ["VERSION"]
+d["builds"][0]["parts"][0]["path"]=os.environ["URL"]
+with open(p,"w") as f: json.dump(d,f,indent=2)
+print("updated",p)
+PY
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          URL: https://github.com/${{ steps.ver.outputs.repo }}/releases/download/${{ steps.ver.outputs.version }}/dw-ps-01.factory-${{ steps.ver.outputs.version }}.bin
+
+      - name: Commit manifest
+        run: |
+          if git diff --quiet docs/manifest.json; then
+            echo "No changes"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/manifest.json
+          git commit -m "docs: bump manifest to ${{ steps.ver.outputs.version }}"
+          git push
