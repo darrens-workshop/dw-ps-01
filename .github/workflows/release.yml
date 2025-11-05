@@ -27,8 +27,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set version and repo outputs
-        id: setver
+      - name: Set version and repo
+        id: meta
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
@@ -40,7 +40,7 @@ jobs:
       - name: Ensure tag exists (manual runs)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          VERSION="${{ steps.setver.outputs.version }}"
+          VERSION="${{ steps.meta.outputs.version }}"
           if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -58,83 +58,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install esphome
 
-      - name: Show ESPHome version
-        run: esphome version
-
       - name: Compile firmware
         run: esphome compile "${EXAMPLE_YAML}"
 
       - name: Find build artifacts
         id: find
         run: |
-          FACTORY="$(find .esphome/build -type f -name 'firmware-factory.bin' | head -n 1)"
-          OTA="$(find .esphome/build -type f -name 'firmware.bin' | head -n 1)"
+          FACTORY="$(find .esphome/build -type f -name 'firmware-factory.bin' | head -n 1 || true)"
+          OTA="$(find .esphome/build -type f -name 'firmware.bin' | head -n 1 || true)"
           if [ -z "$FACTORY" ] || [ ! -f "$FACTORY" ]; then
-            echo "Factory binary not found"
-            find .esphome/build -maxdepth 5 -type f -name 'firmware*' -ls
-            exit 1
+            echo "Factory binary not found"; find .esphome/build -maxdepth 6 -type f -name 'firmware*' -ls; exit 1
           fi
           if [ -z "$OTA" ] || [ ! -f "$OTA" ]; then
-            echo "OTA binary not found"
-            find .esphome/build -maxdepth 5 -type f -name 'firmware*' -ls
-            exit 1
+            echo "OTA binary not found"; find .esphome/build -maxdepth 6 -type f -name 'firmware*' -ls; exit 1
           fi
           mkdir -p dist
-          OUT_FACTORY="dist/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin"
-          OUT_OTA="dist/dw-ps-01-ota-${{ steps.setver.outputs.version }}.bin"
+          OUT_FACTORY="dist/dw-ps-01.factory-${{ steps.meta.outputs.version }}.bin"
+          OUT_OTA="dist/dw-ps-01-ota-${{ steps.meta.outputs.version }}.bin"
           cp "$FACTORY" "$OUT_FACTORY"
           cp "$OTA" "$OUT_OTA"
           echo "factory=$OUT_FACTORY" >> "$GITHUB_OUTPUT"
           echo "ota=$OUT_OTA" >> "$GITHUB_OUTPUT"
 
-      - name: Create or update GitHub Release
+      - name: Create/Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.setver.outputs.version }}
-          name: ${{ steps.setver.outputs.version }}
+          tag_name: ${{ steps.meta.outputs.version }}
+          name: ${{ steps.meta.outputs.version }}
           files: |
             ${{ steps.find.outputs.factory }}
             ${{ steps.find.outputs.ota }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Ensure docs/manifest.json exists
-        run: |
-          mkdir -p docs
-          if [ ! -f docs/manifest.json ]; then
-            echo '{"name":"DW Presence Sensor","version":"v0.0.0","builds":[{"chipFamily":"ESP32-S3","parts":[{"path":"","offset":0}]}]}' > docs/manifest.json
-          fi
-
-      - name: Update manifest to latest release
-        run: |
-          VERSION="${{ steps.setver.outputs.version }}"
-          REPO="${{ steps.setver.outputs.repo }}"
-          URL="https://github.com/${REPO}/releases/download/${VERSION}/dw-ps-01.factory-${VERSION}.bin"
-          python - <<PY
-import json, os
-p = "docs/manifest.json"
-with open(p, "r", encoding="utf-8") as f:
-    data = json.load(f)
-if "builds" not in data or not data["builds"]:
-    data["builds"] = [{"chipFamily": "ESP32-S3", "parts": [{"path": "", "offset": 0}]}]
-data["version"] = os.environ["VERSION"]
-data["builds"][0]["parts"][0]["path"] = os.environ["URL"]
-with open(p, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2)
-print("Updated", p)
-PY
-        env:
-          VERSION: ${{ steps.setver.outputs.version }}
-          URL: https://github.com/${{ steps.setver.outputs.repo }}/releases/download/${{ steps.setver.outputs.version }}/dw-ps-01.factory-${{ steps.setver.outputs.version }}.bin
-
-      - name: Commit manifest if changed
-        run: |
-          if git diff --quiet docs/manifest.json; then
-            echo "No manifest changes"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/manifest.json
-          git commit -m "docs: bump manifest to ${{ steps.setver.outputs.version }}"
-          git push
