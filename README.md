@@ -139,28 +139,42 @@ Binaries will appear under:
 
 ## ⚙️ For Advanced Users
 
-If you want to customize the firmware (for example, to pre-configure Wi-Fi or enable encryption):
+If you want to customize the firmware (for example, to pre-configure Wi-Fi or enable encrypted API access):
 
-1. Clone this repository.
-2. Open `esphome/dw-ps-01-example.yaml`.
-3. Uncomment and edit the following lines:
+1. Clone this repository.  
+2. Open `esphome/dw-ps-01-example.yaml`.  
+3. Uncomment and edit the following lines in the **Substitutions** section:
 
-    # wifi_ssid: !secret dw_ps_wifi_ssid
-    # wifi_password: !secret dw_ps_wifi_password
-    # api_key: !secret dw_ps_api_key
+       # wifi_ssid: !secret dw_ps_wifi_ssid
+       # wifi_password: !secret dw_ps_wifi_password
+       # api_key: !secret dw_ps_api_key
 
-4. In your `secrets.yaml`, define:
+4. Then open `packages/dw-ps-01-network.yaml` and **uncomment** the corresponding lines:
 
-    dw_ps_wifi_ssid: "YourWiFiNetwork"
-    dw_ps_wifi_password: "YourWiFiPassword"
-    dw_ps_api_key: "your-home-assistant-api-key"
+       wifi:
+         ssid: ${wifi_ssid}
+         password: ${wifi_password}
+         ap:
+           ssid: "${friendly_name} Fallback AP"
+           password: "setup1234"
 
-5. Compile and flash:
+       api:
+         encryption:
+           key: ${api_key}
 
-    esphome run esphome/dw-ps-01-example.yaml
+5. In your `secrets.yaml`, define your real credentials:
 
-Tip: API encryption adds secure communication between your sensor and Home Assistant.  
-It’s optional — leave it disabled if you prefer quick pairing and local-only use.
+       dw_ps_wifi_ssid: "YourWiFiNetwork"
+       dw_ps_wifi_password: "YourWiFiPassword"
+       dw_ps_api_key: "your-home-assistant-api-key"
+
+6. Compile and flash your customized firmware:
+
+       esphome run esphome/dw-ps-01-example.yaml
+
+> 🧠 Tip:  
+> - The API key is optional. Leave it commented if you prefer simple, local pairing.  
+> - Wi-Fi credentials are stored in the device’s flash memory and persist through updates.
 
 ---
 
