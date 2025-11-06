@@ -3,7 +3,7 @@
 
 substitutions:
   # Board release substitutions (DO NOT EDIT IN USER CONFIG)
-  fw_version: "1.0"
+  fw_version: "1.0.0"
 
 esphome:
   comment: "Darren's Workshop dw-ps-01 (v2) IoT Presence Sensor – LD2410C mmWave, AS312 PIR, and VEML7700 ambient light."
@@ -81,3 +81,4 @@ sensor:
     update_interval: 30s
     ambient_light:
       name: "${friendly_name} Ambient Light"
+
