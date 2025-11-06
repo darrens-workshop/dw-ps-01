@@ -52,6 +52,10 @@ When first powered after flashing, the device will start a **Wi-Fi access point*
 > ⚙️ You do **not** need to edit or reflash any files.  
 > Wi-Fi credentials are saved internally and will stay stored through future firmware updates.
 
+> ⚙️ If no setup page opens automatically you should be able to reach it manually. 
+> Open a browser on whichever phone or laptop is conencted to the device's AP, and
+> visit http://192.168.1.4
+
 ---
 
 ## 🏡 Integration with Home Assistant
