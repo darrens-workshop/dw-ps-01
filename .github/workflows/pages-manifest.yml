@@ -16,40 +16,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Ensure docs/manifest.json exists
+      - name: Write manifest for this release
         run: |
           mkdir -p docs
-          if [ ! -f docs/manifest.json ]; then
-            echo '{"name":"DW Presence Sensor","version":"v0.0.0","builds":[{"chipFamily":"ESP32-S3","parts":[{"path":"","offset":0}]}]}' > docs/manifest.json
-          fi
-
-      - name: Update manifest to this release
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
-          REPO: ${{ github.repository }}
-        run: |
-          python - <<'PY'
-import json, os
-p = "docs/manifest.json"
-with open(p, "r", encoding="utf-8") as f:
-    data = json.load(f)
-
-# ensure builds structure
-if "builds" not in data or not data["builds"]:
-    data["builds"] = [{"chipFamily": "ESP32-S3", "parts": [{"path": "", "offset": 0}]}]
-
-# set version and URL to latest factory binary
-version = os.environ["VERSION"]
-repo = os.environ["REPO"]
-url = f"https://github.com/{repo}/releases/download/{version}/dw-ps-01.factory-{version}.bin"
-
-data["version"] = version
-data["builds"][0]["parts"][0]["path"] = url
-
-with open(p, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2)
-print("Updated", p, "->", version, url)
-PY
+          VERSION='${{ github.event.release.tag_name }}'
+          REPO='${{ github.repository }}'
+          URL="https://github.com/${REPO}/releases/download/${VERSION}/dw-ps-01.factory-${VERSION}.bin"
+          echo '{"name":"DW Presence Sensor","version":"'"$VERSION"'","builds":[{"chipFamily":"ESP32-S3","parts":[{"path":"'"$URL"'","offset":0}]}]}' > docs/manifest.json
+          cat docs/manifest.json
 
       - name: Commit manifest if changed
         run: |
