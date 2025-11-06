@@ -53,7 +53,7 @@ When first powered after flashing, the device will start a **Wi-Fi access point*
 > Wi-Fi credentials are saved internally and will stay stored through future firmware updates.
 
 > ⚙️ If no setup page opens automatically you should be able to reach it manually. 
-> Open a browser on whichever phone or laptop is conencted to the device's AP, and
+> Open a browser on whichever phone or laptop is connected to the device's AP, and
 > visit http://192.168.1.4
 
 ---
