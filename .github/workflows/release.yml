@@ -67,18 +67,26 @@ jobs:
         id: find
         run: |
           set -e
-          # Search the whole repo and the runner's home, in case ESPHome chose either
-          FACTORY="$(find . "$HOME" -type f -name 'firmware-factory.bin' 2>/dev/null | head -n 1 || true)"
+          # Prefer the dot style; fall back to hyphen style if needed
+          FACTORY="$(find . "$HOME" -type f -name 'firmware.factory.bin' 2>/dev/null | head -n 1 || true)"
+          if [ -z "$FACTORY" ]; then
+            FACTORY="$(find . "$HOME" -type f -name 'firmware-factory.bin' 2>/dev/null | head -n 1 || true)"
+          fi
+
+          # Prefer the standard OTA (firmware.bin)
           OTA="$(find . "$HOME" -type f -name 'firmware.bin' 2>/dev/null | head -n 1 || true)"
+          if [ -z "$OTA" ]; then
+            OTA="$(find . "$HOME" -type f -name 'firmware.ota.bin' 2>/dev/null | head -n 1 || true)"
+          fi
 
           if [ -z "$FACTORY" ] || [ ! -f "$FACTORY" ]; then
-            echo "Factory binary not found; showing any firmware-like files under repo and HOME:"
-            find . "$HOME" -maxdepth 8 -type f \( -name 'firmware*.bin' -o -name '*.bin' \) -ls 2>/dev/null || true
+            echo "Factory binary not found; showing candidates:"
+            find . "$HOME" -maxdepth 8 -type f -name 'firmware*bin' -ls 2>/dev/null || true
             exit 1
           fi
           if [ -z "$OTA" ] || [ ! -f "$OTA" ]; then
-            echo "OTA binary not found; showing any firmware-like files under repo and HOME:"
-            find . "$HOME" -maxdepth 8 -type f \( -name 'firmware*.bin' -o -name '*.bin' \) -ls 2>/dev/null || true
+            echo "OTA binary not found; showing candidates:"
+            find . "$HOME" -maxdepth 8 -type f -name 'firmware*bin' -ls 2>/dev/null || true
             exit 1
           fi
 
@@ -93,14 +101,6 @@ jobs:
           echo "factory=$OUT_FACTORY" >> "$GITHUB_OUTPUT"
           echo "ota=$OUT_OTA" >> "$GITHUB_OUTPUT"
 
-
-          mkdir -p dist
-          OUT_FACTORY="dist/dw-ps-01.factory-${{ steps.meta.outputs.version }}.bin"
-          OUT_OTA="dist/dw-ps-01-ota-${{ steps.meta.outputs.version }}.bin"
-          cp "$FACTORY" "$OUT_FACTORY"
-          cp "$OTA" "$OUT_OTA"
-          echo "factory=$OUT_FACTORY" >> "$GITHUB_OUTPUT"
-          echo "ota=$OUT_OTA" >> "$GITHUB_OUTPUT"
 
       - name: Create/Update GitHub Release
         uses: softprops/action-gh-release@v2
