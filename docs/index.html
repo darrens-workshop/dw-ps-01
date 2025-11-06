@@ -1,15 +1,42 @@
 <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>DW Presence Sensor – Web Installer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script type="module" src="https://unpkg.com/esp-web-tools@9/dist/web/install-button.js?module"></script>
-</head>
-<body>
-  <h1>DW Presence Sensor (dw-ps-01)</h1>
-  <p>Connect your ESP32-S3 over USB, then click Install.</p>
-  <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
-  <p><a href="https://github.com/darrens-workshop/dw-ps-01/releases/latest">Release notes & binaries</a></p>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>DW Presence Sensor – Web Installer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Flash and update your DW Presence Sensor (dw-ps-01) firmware directly from your browser.">
+    <script type="module" src="https://unpkg.com/esp-web-tools@9/dist/web/install-button.js?module"></script>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        text-align: center;
+        margin: 2rem;
+        background: #f6f8fa;
+      }
+      h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
+      p { color: #333; }
+      esp-web-install-button {
+        margin: 1.5rem auto;
+        display: block;
+      }
+      footer {
+        margin-top: 2rem;
+        font-size: 0.9rem;
+        color: #666;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>DW Presence Sensor</h1>
+    <p><strong>Model:</strong> dw-ps-01 (v2)</p>
+    <p>Click <b>Install</b> below to flash the latest firmware directly to your ESP32-S3 device.</p>
+
+    <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+
+    <footer>
+      <p><a href="https://github.com/darrens-workshop/dw-ps-01/releases/latest">View latest release on GitHub</a></p>
+      <p>&copy; 2025 Darren's Workshop</p>
+    </footer>
+  </body>
 </html>
