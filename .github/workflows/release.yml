@@ -61,21 +61,26 @@ jobs:
       - name: Compile firmware
         run: |
           mkdir -p .esphome
-          esphome compile "${EXAMPLE_YAML}" --build-path ./.esphome
+          esphome compile "${EXAMPLE_YAML}"
 
       - name: Find build artifacts
         id: find
         run: |
-          FACTORY="$(find ./.esphome -type f -name 'firmware-factory.bin' | head -n 1 || true)"
-          OTA="$(find ./.esphome -type f -name 'firmware.bin' | head -n 1 || true)"
+          set -e
+          FACTORY="$(find .esphome "$HOME/.esphome" -type f -name 'firmware-factory.bin' 2>/dev/null | head -n 1 || true)"
+          OTA="$(find .esphome "$HOME/.esphome" -type f -name 'firmware.bin' 2>/dev/null | head -n 1 || true)"
+
           if [ -z "$FACTORY" ] || [ ! -f "$FACTORY" ]; then
-            echo "Factory binary not found"; find ./.esphome -maxdepth 8 -type f -name 'firmware*' -ls || true
+            echo "Factory binary not found; showing possible firmware files:"
+            find .esphome "$HOME/.esphome" -maxdepth 8 -type f -name 'firmware*' -ls 2>/dev/null || true
             exit 1
           fi
           if [ -z "$OTA" ] || [ ! -f "$OTA" ]; then
-            echo "OTA binary not found"; find ./.esphome -maxdepth 8 -type f -name 'firmware*' -ls || true
+            echo "OTA binary not found; showing possible firmware files:"
+            find .esphome "$HOME/.esphome" -maxdepth 8 -type f -name 'firmware*' -ls 2>/dev/null || true
             exit 1
           fi
+
           mkdir -p dist
           OUT_FACTORY="dist/dw-ps-01.factory-${{ steps.meta.outputs.version }}.bin"
           OUT_OTA="dist/dw-ps-01-ota-${{ steps.meta.outputs.version }}.bin"
